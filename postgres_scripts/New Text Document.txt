@@ -1,0 +1,41 @@
+import pandas as pd
+import numpy as np
+from sqlalchemy import create_engine
+
+DB_URL = "postgresql://iscore_user:iscore_password@localhost:5432/home_credit_db"
+engine = create_engine(DB_URL)
+
+print("Loading bureau.csv into PostgreSQL...")
+df_bureau = pd.read_csv("data/raw_source/bureau.csv")
+
+# تعديل اسم العمود ليطابق اسم المفتاح الأصلي في CSV
+bureau_cols_csv = [
+    "SK_ID_BUREAU", "SK_ID_CURR", "CREDIT_ACTIVE", "CREDIT_CURRENCY",
+    "DAYS_CREDIT", "CREDIT_DAY_OVERDUE", "DAYS_CREDIT_ENDDATE",
+    "AMT_CREDIT_MAX_OVERDUE", "CNT_CREDIT_PROLONG", "AMT_CREDIT_SUM",
+    "AMT_CREDIT_SUM_DEBT", "AMT_CREDIT_SUM_LIMIT", "AMT_CREDIT_SUM_OVERDUE",
+    "CREDIT_TYPE", "DAYS_CREDIT_UPDATE"
+]
+
+df_bureau = df_bureau[bureau_cols_csv]
+
+# إعادة تسمية العمود ليطابق اسم الجدول في قاعدة البيانات sk_bureau_id
+df_bureau = df_bureau.rename(columns={"SK_ID_BUREAU": "SK_BUREAU_ID"})
+
+# الفلترة بناءً على الـ 10,000 عميل اللذين تم رفعهم بالفعل في applications
+app_ids = pd.read_csv("data/raw_source/application_train.csv", nrows=10000)["SK_ID_CURR"]
+df_bureau = df_bureau[df_bureau["SK_ID_CURR"].isin(app_ids)]
+df_bureau = df_bureau.replace({np.nan: None})
+
+# تحويل كافة الأسماء إلى حروف صغيرة لتناسب PostgreSQL
+df_bureau.columns = [col.lower() for col in df_bureau.columns]
+
+df_bureau.to_sql(
+    "bureau", 
+    engine, 
+    schema="banking_core", 
+    if_exists="append", 
+    index=False,
+    chunksize=1000
+)
+print("Bureau data loaded successfully!")
