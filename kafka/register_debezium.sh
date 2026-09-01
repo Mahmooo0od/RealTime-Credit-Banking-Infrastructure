@@ -10,6 +10,8 @@ curl -i -X POST -H "Accept:application/json" -H "Content-Type:application/json" 
     "database.user": "iscore_user",
     "database.password": "iscore_password",
     "database.dbname": "home_credit_db",
-    "topic.prefix": "banking"
+    "topic.prefix": "banking",
+    "table.include.list": "banking_core.applications",
+    "decimal.handling.mode": "double"
   }
 }'
