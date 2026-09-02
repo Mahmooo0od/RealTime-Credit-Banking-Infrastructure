@@ -1,9 +1,28 @@
+# Python environment
 venv/
 .venv/
 __pycache__/
 *.pyc
+
+# Spark / Ivy
 .ivy2*/
-data/
-*.parquet
 *.jar
 /tmp/
+
+# Data files (raw, processed, warehouse - data/)
+data/
+*.parquet
+*.duckdb
+
+# dbt generated files
+banking_dbt/target/
+banking_dbt/logs/
+banking_dbt/dbt_packages/
+
+# Secrets 
+.env
+*.env
+
+# IDE / OS
+.vscode/
+.DS_Store

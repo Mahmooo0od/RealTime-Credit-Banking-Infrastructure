@@ -1,0 +1,62 @@
+## 🔧 Engineering Decisions & Lessons Learned
+
+### 1. CDC vs Direct Event Production
+Applications are ingested via Debezium CDC on PostgreSQL (WAL-based), 
+simulating a legacy core-banking system that cannot be modified to emit 
+events directly. This is a deliberate architectural choice, not a 
+Kafka-producer shortcut — CDC decouples the ingestion pipeline from the 
+operational system's codebase, mirroring how real banks integrate with 
+legacy loan/ATM systems.
+
+### 2. Reference Data: Parquet, not JDBC
+Bureau (credit history) data is read as a static Parquet DataFrame, 
+not queried live via JDBC from PostgreSQL. Reading reference data directly 
+from an OLTP database on every Spark batch would create contention with 
+the operational system and doesn't scale — this mirrors the standard 
+OLTP/OLAP separation used in production data platforms.
+
+### 3. Debezium Decimal Encoding
+PostgreSQL NUMERIC columns are encoded by Debezium as Base64 bytes by 
+default (to preserve precision), not as plain doubles. This caused all 
+financial fields to silently resolve to null → masked by coalesce() 
+defaults, producing valid-looking but wrong numbers. 
+Fix: "decimal.handling.mode": "double" in the connector config.
+
+### 4. Producer Idempotency & Resume Logic
+The initial producer replayed the CSV from row 0 on every restart, 
+re-attempting inserts for already-loaded rows (silently skipped via 
+ON CONFLICT DO NOTHING) before reaching new data — at 0.5s/row this 
+meant ~14 hours before any new event was emitted. 
+Fix: producer now queries MAX(sk_id_curr) on startup and resumes 
+from there, instead of blindly restarting from the beginning of the file.
+
+### 5. Bureau Aggregation Before Join
+bureau.csv has a one-to-many relationship with applications (multiple 
+historical loans per customer). Joining without aggregation caused row 
+duplication and conflicting is_high_risk values for the same event 
+within a single micro-batch. 
+Fix: bureau is aggregated (SUM, COUNT by sk_id_curr) in the 
+Silver layer *before* the stream-static join — not deferred to a later 
+dbt/Gold-layer step, since the real-time risk decision depends on it.
+
+### 6. Streaming Checkpointing
+Output writes use checkpointLocation so the streaming job can resume 
+from the last processed Kafka offset after a restart/crash, avoiding 
+both data loss and duplicate reprocessing.
+
+### 7. WSL Restarts & Streaming State
+An abrupt WSL shutdown mid-write can leave the Structured Streaming query 
+in an inconsistent state relative to its checkpoint, causing the job to 
+appear "stuck" (running, consuming resources, but producing no new output) 
+even after a clean restart. Diagnosed by checking for orphaned Spark 
+processes (ps aux | grep spark) and verifying producer/consumer activity 
+independently before assuming a code regression.
+
+### 8. Sustained Run & Performance Under Constrained Resources
+The pipeline ran continuously for ~3 hours on an 8GB RAM machine, 
+processing 16K+ records end-to-end (Postgres → Debezium → Kafka → 
+Spark → Parquet) without crashing. Batch latency degraded over time 
+(observed up to ~28 min/batch under sustained load), a known limitation 
+of running Kafka + Postgres + Spark concurrently on constrained local 
+hardware — a production deployment would offload processing to a 
+dedicated Spark cluster (e.g., Databricks) rather than local mode.

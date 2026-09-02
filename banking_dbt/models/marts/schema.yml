@@ -1,0 +1,17 @@
+version: 2
+
+models:
+  - name: fact_loan_applications
+    description: "Fact table for loan applications with risk scoring"
+    columns:
+      - name: sk_id_curr
+        tests:
+          - not_null
+
+  - name: dim_customer_credit_profile
+    description: "Customer credit profile dimension, aggregated from bureau history"
+    columns:
+      - name: sk_id_curr
+        tests:
+          - not_null
+          - unique
