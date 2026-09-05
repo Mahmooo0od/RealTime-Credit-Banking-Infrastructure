@@ -39,7 +39,7 @@ services:
       KAFKA_INTER_BROKER_LISTENER_NAME: 'PLAINTEXT'
       KAFKA_CONTROLLER_LISTENER_NAMES: 'CONTROLLER'
       KAFKA_LOG_DIRS: '/tmp/kraft-combined-logs'
-      CLUSTER_ID: 'MkU3OEVBNTcwNTJENDM2Qk'  # <-- المسمّى الصحيح هنا
+      CLUSTER_ID: 'MkU3OEVBNTcwNTJENDM2Qk'
       KAFKA_HEAP_OPTS: "-Xms256M -Xmx768M"
     networks:
       - banking_net
@@ -47,6 +47,7 @@ services:
       resources:
         limits:
           memory: 1G
+
   # 3. Debezium Connect (CDC)
   debezium:
     image: debezium/connect:2.4
@@ -73,9 +74,31 @@ services:
         limits:
           memory: 1.2G
 
+  # 4. Grafana (Visualization) - مع DuckDB plugin
+  grafana:
+    image: grafana/grafana:10.4.2-ubuntu
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS: motherduck-duckdb-datasource
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - /mnt/d/RealTime-Credit-Banking-Infrastructure/grafana_plugins/motherduck-duckdb-datasource:/var/lib/grafana/plugins/motherduck-duckdb-datasource
+      - /mnt/d/RealTime-Credit-Banking-Infrastructure/data/warehouse:/data/warehouse
+    networks:
+      - banking_net
+    deploy:
+      resources:
+        limits:
+          memory: 350M
+
 networks:
   banking_net:
     driver: bridge
 
 volumes:
   postgres_data:
+  grafana_data:

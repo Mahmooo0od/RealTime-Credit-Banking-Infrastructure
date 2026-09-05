@@ -19,7 +19,10 @@ banking_dbt/target/
 banking_dbt/logs/
 banking_dbt/dbt_packages/
 
-# Secrets 
+# Grafana plugin binaries 
+grafana_plugins/
+
+# Secrets
 .env
 *.env
 

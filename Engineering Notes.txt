@@ -60,3 +60,15 @@ Spark → Parquet) without crashing. Batch latency degraded over time
 of running Kafka + Postgres + Spark concurrently on constrained local 
 hardware — a production deployment would offload processing to a 
 dedicated Spark cluster (e.g., Databricks) rather than local mode.
+
+### 9. Unsigned Grafana Plugins Require Manual Install
+The DuckDB datasource plugin isn't in Grafana's official registry, so 
+`GF_INSTALL_PLUGINS` (which fetches from the registry) always returns 404 
+regardless of the name used. Unsigned plugins must be: (1) downloaded 
+manually and mounted via an absolute host path (relative paths failed 
+silently), (2) explicitly allow-listed via 
+`GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS`, and (3) run on a 
+glibc-based image (`grafana/grafana:X.X.X-ubuntu`), not the default 
+Alpine/musl image. Additionally, DuckDB requires read-write access even 
+for read-only queries (it writes internal WAL/lock files), so a `:ro` 
+volume mount causes silent connection failures.
